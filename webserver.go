@@ -2,25 +2,40 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 )
 
-type testStruct struct {
-	Test string
+func isJSON(s string) bool {
+	var js map[string]interface{}
+	return json.Unmarshal([]byte(s), &js) == nil
 }
 
-func test(rw http.ResponseWriter, req *http.Request) {
+func handleRequest(rw http.ResponseWriter, req *http.Request) {
 
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(req.Body)
-	s := buf.String()
+	//try and fill buffer from request body
+	buffer := new(bytes.Buffer)
+	_, err := buffer.ReadFrom(req.Body)
 
-	log.Printf(s)
+	//if successful, push into json string
+	if err == nil {
+		var json string
+		json = buffer.String()
+		if isJSON(json) {
+			log.Printf(json)
+			return
+		} else {
+			err = errors.New("No valid JSON")
+		}
+	}
 
+	//if this is reached, it is unsuccessful; print error
+	log.Printf("error: %v", err.Error())
 }
 
 func main() {
-	http.HandleFunc("/test", test)
+	http.HandleFunc("/sync", handleRequest)
 	log.Fatal(http.ListenAndServe(":8082", nil))
 }
