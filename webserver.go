@@ -6,17 +6,12 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"time"
 
 	"gopkg.in/mgo.v2"
 )
 
-var successes = 0
-var failures = 0
-var requests = 0
-
 func handleRequest(rw http.ResponseWriter, req *http.Request) {
-	requests++
+	//requests++
 
 	//try and fill buffer from request body
 	buffer := new(bytes.Buffer)
@@ -29,10 +24,17 @@ func handleRequest(rw http.ResponseWriter, req *http.Request) {
 		err = isJSON(data)
 		if err == nil {
 			//if JSON is valid, store in DB
-			err = storeInDB(data)
+			for i := 0; i < 5; i++ {
+				err = storeInDB(data)
+				if err == nil {
+					return
+				} else {
+					//retry n times if failed
+					err = storeInDB(data)
+				}
+			}
 			if err == nil {
 				rw.WriteHeader(http.StatusOK)
-				successes++
 				return
 			} else {
 				//if persisting to DB failed, send appropriate status
@@ -48,13 +50,14 @@ func handleRequest(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	//if this is reached, the request was unsuccessful; print error
-	failures++
-	//log.Printf("error: %v (%v)", err.Error(), failures)
+	log.Printf("error: %v", err.Error())
 
 }
 
 func storeInDB(data string) error {
 	//dial new db session
+	var err error
+	//var session *session
 	session, err := mgo.Dial("127.0.0.1")
 	if err != nil {
 		//Raise error
@@ -78,15 +81,15 @@ func storeInDB(data string) error {
 }
 
 func main() {
-	ticker := time.NewTicker(time.Second * 5)
-	go func() {
-		for t := range ticker.C {
-			log.Printf("Time: %v", t)
-			log.Printf("requests: %v", requests)
-			log.Printf("successes: %v", successes)
-			log.Printf("errors: %v", failures)
-		}
-	}()
+	/*
+		ticker := time.NewTicker(time.Second * 5)
+		go func() {
+			for t := range ticker.C {
+				log.Printf("Time: %v", t)
+				log.Printf("errors: %v", failures)
+			}
+		}()
+	*/
 
 	http.HandleFunc("/sync", handleRequest)
 	log.Fatal(http.ListenAndServe(":8082", nil))
