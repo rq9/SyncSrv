@@ -81,16 +81,6 @@ func storeInDB(data string) error {
 }
 
 func main() {
-	/*
-		ticker := time.NewTicker(time.Second * 5)
-		go func() {
-			for t := range ticker.C {
-				log.Printf("Time: %v", t)
-				log.Printf("errors: %v", failures)
-			}
-		}()
-	*/
-
 	http.HandleFunc("/sync", handleRequest)
 	log.Fatal(http.ListenAndServe(":8082", nil))
 }
