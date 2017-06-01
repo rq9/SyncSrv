@@ -7,10 +7,11 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/ant0ine/go-json-rest/rest"
 	"gopkg.in/mgo.v2"
 )
 
-func handleRequest(rw http.ResponseWriter, req *http.Request) {
+func handleRequest(rw rest.ResponseWriter, req *rest.Request) {
 	//requests++
 
 	//try and fill buffer from request body
@@ -51,7 +52,6 @@ func handleRequest(rw http.ResponseWriter, req *http.Request) {
 
 	//if this is reached, the request was unsuccessful; print error
 	log.Printf("error: %v", err.Error())
-
 }
 
 func storeInDB(data string) error {
@@ -81,8 +81,26 @@ func storeInDB(data string) error {
 }
 
 func main() {
-	http.HandleFunc("/sync", handleRequest)
-	log.Fatal(http.ListenAndServe(":8082", nil))
+	api := rest.NewApi()
+	api.Use(rest.DefaultDevStack...)
+	api.Use(&rest.AuthBasicMiddleware{
+		Realm: "test zone",
+		Authenticator: func(userId string, password string) bool {
+			if userId == "till" && password == "genesis" {
+				return true
+			}
+			return false
+		},
+	})
+
+	router, err := rest.MakeRouter(
+		rest.Post("/sync", handleRequest),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+	api.SetApp(router)
+	log.Fatal(http.ListenAndServe(":8082", api.MakeHandler()))
 }
 
 func isJSON(s string) error {
