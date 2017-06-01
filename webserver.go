@@ -7,13 +7,11 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/ant0ine/go-json-rest/rest"
-	"gopkg.in/mgo.v2"
+	"github.com/ant0ine/go-json-rest/rest" //authentication
+	"gopkg.in/mgo.v2"                      //mongo db
 )
 
 func handleRequest(rw rest.ResponseWriter, req *rest.Request) {
-	//requests++
-
 	//try and fill buffer from request body
 	buffer := new(bytes.Buffer)
 	_, err := buffer.ReadFrom(req.Body)
@@ -95,12 +93,13 @@ func main() {
 
 	router, err := rest.MakeRouter(
 		rest.Post("/sync", handleRequest),
+		rest.Get("/sync", handleRequest),
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
 	api.SetApp(router)
-	log.Fatal(http.ListenAndServe(":8082", api.MakeHandler()))
+	log.Fatal(http.ListenAndServeTLS(":443", "server.pem", "server.key", api.MakeHandler()))
 }
 
 func isJSON(s string) error {
