@@ -6,40 +6,59 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"time"
 
 	"gopkg.in/mgo.v2"
 )
 
+var successes = 0
+var failures = 0
+var requests = 0
+
 func handleRequest(rw http.ResponseWriter, req *http.Request) {
+	requests++
 
 	//try and fill buffer from request body
 	buffer := new(bytes.Buffer)
 	_, err := buffer.ReadFrom(req.Body)
 
-	//if successful, push into JSON string
 	if err == nil {
+		//if successful, convert to JSON string
 		var data string
 		data = buffer.String()
-		if isJSON(data) {
+		err = isJSON(data)
+		if err == nil {
 			//if JSON is valid, store in DB
-			log.Printf(data)
-			storeInDB(data)
-			return
+			err = storeInDB(data)
+			if err == nil {
+				rw.WriteHeader(http.StatusOK)
+				successes++
+				return
+			} else {
+				//if persisting to DB failed, send appropriate status
+				rw.WriteHeader(http.StatusTooManyRequests)
+			}
 		} else {
-			//if JSON is invalid, raise an error
-			err = errors.New("No valid JSON")
+			//if JSON is invalid, send appropriate status
+			rw.WriteHeader(http.StatusExpectationFailed)
 		}
+	} else {
+		//if Request.Body is invalid, send appropriate status
+		rw.WriteHeader(http.StatusBadRequest)
 	}
 
 	//if this is reached, the request was unsuccessful; print error
-	log.Fatalf("error: %v", err.Error())
+	failures++
+	//log.Printf("error: %v (%v)", err.Error(), failures)
+
 }
 
-func storeInDB(data string) {
+func storeInDB(data string) error {
 	//dial new db session
 	session, err := mgo.Dial("127.0.0.1")
 	if err != nil {
-		panic(err)
+		//Raise error
+		return err
 	}
 	//close afterwards
 	defer session.Close()
@@ -53,18 +72,33 @@ func storeInDB(data string) {
 	err = c.Insert(&js)
 	if err != nil {
 		//Raise error
-		log.Fatal(err)
+		return err
 	}
+	return nil
 }
 
 func main() {
+	ticker := time.NewTicker(time.Second * 5)
+	go func() {
+		for t := range ticker.C {
+			log.Printf("Time: %v", t)
+			log.Printf("requests: %v", requests)
+			log.Printf("successes: %v", successes)
+			log.Printf("errors: %v", failures)
+		}
+	}()
+
 	http.HandleFunc("/sync", handleRequest)
 	log.Fatal(http.ListenAndServe(":8082", nil))
 }
 
-func isJSON(s string) bool {
+func isJSON(s string) error {
 	var js map[string]interface{}
-	return json.Unmarshal([]byte(s), &js) == nil
+	if json.Unmarshal([]byte(s), &js) == nil {
+		return nil
+	} else {
+		return errors.New("Invalid JSON")
+	}
 }
 
 /*
