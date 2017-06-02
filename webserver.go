@@ -2,13 +2,16 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/ant0ine/go-json-rest/rest" //authentication + ssl
 	"gopkg.in/mgo.v2"                      //mongo db
+	"gopkg.in/mgo.v2/bson"                 //bson
 )
 
 func handleGetRequest(rw rest.ResponseWriter, req *rest.Request) {
@@ -26,6 +29,18 @@ func handlePostRequest(rw rest.ResponseWriter, req *rest.Request) {
 		data = buffer.String()
 		err = isJSON(data)
 		if err == nil {
+			//find storageId for this user
+			authHeader := req.Header.Get("Authorization")
+			authToken := strings.Split(authHeader, "Basic ")[1]
+			base64Text := make([]byte, base64.StdEncoding.DecodedLen(len(authToken)))
+			base64.StdEncoding.Decode(base64Text, []byte(authToken))
+			storageID := strings.Split(string(base64Text), ":")[0]
+			//add storageId to JSON
+			out := map[string]interface{}{}
+			json.Unmarshal([]byte(data), &out)
+			out["storageId"] = storageID
+			outputJSON, err := json.Marshal(out)
+			data = string(outputJSON)
 			//if JSON is valid, store in DB
 			for i := 0; i < 5; i++ {
 				err = storeInDB(data)
@@ -60,7 +75,7 @@ func storeInDB(data string) error {
 	//dial new db session
 	var err error
 	//var session *session
-	session, err := mgo.Dial("127.0.0.1")
+	session, err := mgo.Dial("127.0.0.1") //TODO use connection pool
 	if err != nil {
 		//Raise error
 		return err
@@ -83,10 +98,21 @@ func storeInDB(data string) error {
 }
 
 func authenticate(userID string, password string) bool {
-	if userID == "till" && password == "genesis" {
-		return true
+	session, err := mgo.Dial("127.0.0.1") //TODO use connection pool
+	if err != nil {
+		//Raise error
+		panic(err)
 	}
-	return false
+	//close afterwards
+	defer session.Close()
+
+	c := session.DB("wellnomics").C("authentication")
+	count, err := c.Find(bson.M{"name": userID, "password": password}).Count()
+	if err != nil {
+		panic(err)
+	}
+
+	return count > 0
 }
 
 func main() {
@@ -134,4 +160,7 @@ GO
 	go get
 OPENSSL
 	https://www.akadia.com/services/ssh_test_certificate.html
+MONGODB
+	db.authentication.insert({name:'till',password:'genesis',storageId:1})
+	db.sync.count({"storageId":"till"})
 */
