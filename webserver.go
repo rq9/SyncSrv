@@ -6,7 +6,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"strings"
 
 	"github.com/ant0ine/go-json-rest/rest" //authentication + ssl
 	"gopkg.in/mgo.v2"                      //mongo db
@@ -83,17 +82,19 @@ func storeInDB(data string) error {
 	return nil
 }
 
+func authenticate(userID string, password string) bool {
+	if userID == "till" && password == "genesis" {
+		return true
+	}
+	return false
+}
+
 func main() {
 	api := rest.NewApi()
 	api.Use(rest.DefaultDevStack...)
 	api.Use(&rest.AuthBasicMiddleware{
-		Realm: "test zone",
-		Authenticator: func(userId string, password string) bool {
-			if userId == "till" && password == "genesis" {
-				return true
-			}
-			return false
-		},
+		Realm:         "test zone",
+		Authenticator: authenticate,
 	})
 
 	router, err := rest.MakeRouter(
@@ -105,20 +106,14 @@ func main() {
 	}
 	api.SetApp(router)
 
-	go http.ListenAndServe(":8082", http.HandlerFunc(redirect))
+	go http.ListenAndServe(":8082", http.HandlerFunc(rejectHTTP))
 
 	log.Fatal(http.ListenAndServeTLS(":443", "server.pem", "server.key", api.MakeHandler()))
 
 }
 
-func redirect(rw http.ResponseWriter, req *http.Request) {
-	target := "https://" + strings.Split(req.Host, ":")[0] + ":443" + req.URL.Path
-	if len(req.URL.RawQuery) > 0 {
-		target += "?" + req.URL.RawQuery
-	}
-	log.Printf("redirect to: %s", target)
-	http.Redirect(rw, req, target,
-		http.StatusTemporaryRedirect)
+func rejectHTTP(rw http.ResponseWriter, req *http.Request) {
+	rw.WriteHeader(http.StatusHTTPVersionNotSupported)
 }
 
 func isJSON(s string) error {
