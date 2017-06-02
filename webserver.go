@@ -6,12 +6,17 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 
-	"github.com/ant0ine/go-json-rest/rest" //authentication
+	"github.com/ant0ine/go-json-rest/rest" //authentication + ssl
 	"gopkg.in/mgo.v2"                      //mongo db
 )
 
-func handleRequest(rw rest.ResponseWriter, req *rest.Request) {
+func handleGetRequest(rw rest.ResponseWriter, req *rest.Request) {
+	rw.WriteJson(map[string]string{"body": "use POST https://localhost:433/sync, include authentication"})
+}
+
+func handlePostRequest(rw rest.ResponseWriter, req *rest.Request) {
 	//try and fill buffer from request body
 	buffer := new(bytes.Buffer)
 	_, err := buffer.ReadFrom(req.Body)
@@ -92,14 +97,28 @@ func main() {
 	})
 
 	router, err := rest.MakeRouter(
-		rest.Post("/sync", handleRequest),
-		rest.Get("/sync", handleRequest),
+		rest.Post("/sync", handlePostRequest),
+		rest.Get("/", handleGetRequest),
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
 	api.SetApp(router)
+
+	go http.ListenAndServe(":8082", http.HandlerFunc(redirect))
+
 	log.Fatal(http.ListenAndServeTLS(":443", "server.pem", "server.key", api.MakeHandler()))
+
+}
+
+func redirect(rw http.ResponseWriter, req *http.Request) {
+	target := "https://" + strings.Split(req.Host, ":")[0] + ":443" + req.URL.Path
+	if len(req.URL.RawQuery) > 0 {
+		target += "?" + req.URL.RawQuery
+	}
+	log.Printf("redirect to: %s", target)
+	http.Redirect(rw, req, target,
+		http.StatusTemporaryRedirect)
 }
 
 func isJSON(s string) error {
@@ -112,7 +131,12 @@ func isJSON(s string) error {
 }
 
 /*
-git add .
-git commit -m "MESSAGE"
-git push -u origin master
+GIT
+	git add .
+	git commit -m "MESSAGE"
+	git push -u origin master
+GO
+	go get
+OPENSSL
+	https://www.akadia.com/services/ssh_test_certificate.html
 */
