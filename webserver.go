@@ -16,7 +16,7 @@ import (
 
 //Starting point for sync service webserver
 func main() {
-
+	//new REST API
 	api := rest.NewApi()
 	//Defining middleware stack, DevStack for now, has more logging etc...
 	api.Use(rest.DefaultDevStack...)
@@ -44,6 +44,37 @@ func main() {
 
 }
 
+//Checks authentication record exists in Database
+func authenticate(userID string, password string) bool {
+	session, err := mgo.Dial("127.0.0.1") //TODO use connection pool
+	if err != nil {
+		//Raise error
+		panic(err)
+	}
+	//close afterwards
+	defer session.Close()
+
+	//read from DB
+	c := session.DB("wellnomics").C("authentication")
+	count, err := c.Find(bson.M{"name": userID, "password": password}).Count()
+	if err != nil {
+		panic(err)
+	}
+
+	//return true if record exists, false otherwise
+	return count > 0
+}
+
+//Writes StatusHTTPVersionNotSupported Status code to response headers
+func rejectHTTP(rw http.ResponseWriter, req *http.Request) {
+	rw.WriteHeader(http.StatusHTTPVersionNotSupported)
+}
+
+//Writes usage instructions to response body
+func handleGetRequest(rw rest.ResponseWriter, req *rest.Request) {
+	rw.WriteJson(map[string]string{"body": "use POST https://localhost:433/sync, include authentication"})
+}
+
 //Deals with sync data submitted in a post request
 func handlePostRequest(rw rest.ResponseWriter, req *rest.Request) {
 	//try and fill buffer from request body
@@ -54,8 +85,9 @@ func handlePostRequest(rw rest.ResponseWriter, req *rest.Request) {
 		//if successful, convert to JSON string
 		var data string
 		data = buffer.String()
-		err = isJSON(data)
+		err = isValidSyncJSON(data)
 		if err == nil {
+			//if JSON is valid:
 			//find storageId for this user
 			authHeader := req.Header.Get("Authorization")
 			authToken := strings.Split(authHeader, "Basic ")[1]
@@ -68,7 +100,7 @@ func handlePostRequest(rw rest.ResponseWriter, req *rest.Request) {
 			out["storageId"] = storageID
 			outputJSON, err := json.Marshal(out)
 			data = string(outputJSON)
-			//if JSON is valid, store in DB
+			// store in DB
 			for i := 0; i < 5; i++ {
 				err = storeInDB(data)
 				if err == nil {
@@ -98,41 +130,11 @@ func handlePostRequest(rw rest.ResponseWriter, req *rest.Request) {
 	log.Printf("error: %v", err.Error())
 }
 
-//Writes usage instructions to response body
-func handleGetRequest(rw rest.ResponseWriter, req *rest.Request) {
-	rw.WriteJson(map[string]string{"body": "use POST https://localhost:433/sync, include authentication"})
-}
-
-//Writes StatusHTTPVersionNotSupported Status code to response headers
-func rejectHTTP(rw http.ResponseWriter, req *http.Request) {
-	rw.WriteHeader(http.StatusHTTPVersionNotSupported)
-}
-
-//Checks authentication record exists in Database
-func authenticate(userID string, password string) bool {
-	session, err := mgo.Dial("127.0.0.1") //TODO use connection pool
-	if err != nil {
-		//Raise error
-		panic(err)
-	}
-	//close afterwards
-	defer session.Close()
-
-	//read from DB
-	c := session.DB("wellnomics").C("authentication")
-	count, err := c.Find(bson.M{"name": userID, "password": password}).Count()
-	if err != nil {
-		panic(err)
-	}
-
-	//return true if record exists, false otherwise
-	return count > 0
-}
-
 //Verifies a given string is JSON
-func isJSON(s string) error {
+func isValidSyncJSON(s string) error {
 	var js map[string]interface{}
 	if json.Unmarshal([]byte(s), &js) == nil {
+		//TODO check if data is valid sync data
 		return nil
 	} else {
 		return errors.New("Invalid JSON")
