@@ -170,6 +170,11 @@ func storeInDB(data string) error {
 
 /*
 
+
+
+
+
+
 M O N G O   D B   S E R V E R
 =============================
 "c:\Program Files\MongoDB\Server\3.4\bin\mongod.exe" --dbpath c:\users\till.wellnomics\mongoDB
@@ -196,7 +201,7 @@ H T T P   R E Q U E S T E R
 https://localhost\sync
 POST
 application/json
-till:genesis
+till:xxxxxx
 {
 	"widget": {
 		"debug": "on",
@@ -219,6 +224,63 @@ J M E T E R   U I
 J M E T E R   T E S T   R U N
 =============================
 "c:\Program Files (x86)\portable\jmeter\bin\jmeter" -n -t "c:\Users\till.wellnomics\Go\HTTP Request.jmx" -l "c:\Users\till.wellnomics\Go\result" -e -o "c:\Users\till.wellnomics\Go\"
+
+
+
+
+J M E T E R   T E S T   R E S U L T S
+=====================================
+							10k			100k		1000k
+Requests attempts			10,000		100,000		750,121	(client memory error)
+Attempts failed on client	1,291		51,920		512,199 (not enough ports for concurrent requests)
+Actual server requests		8,709		48,080		237,922
+Crashes on server			0			0			0
+Lost data					0			0			0
+Run time (seconds)			36			135			909
+Requests per sec (avg)		242			356			264
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
