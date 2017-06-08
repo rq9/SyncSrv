@@ -304,6 +304,6 @@ GO
 OPENSSL
 	https://www.akadia.com/services/ssh_test_certificate.html
 MONGODB
-	db.authentication.insert({name:'till',password:'genesis',storageId:1})
+	db.authentication.insert({name:'till',password:'xxxxxx',storageId:1})
 	db.sync.count({"storageId":"till"})
 */
